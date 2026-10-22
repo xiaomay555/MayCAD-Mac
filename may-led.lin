@@ -1,0 +1,2 @@
+*LED_LINE,LED line ----LED----LED----LED----
+A,.5,-.2,["LED",Standard,S=.1,R=0,X=-.1,Y=-.05],-.25

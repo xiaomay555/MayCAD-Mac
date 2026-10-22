@@ -1,0 +1,62 @@
+; MayCAD Mac portable public module.
+(defun di:capture (/ r e rows current)
+ (setq current(tblobjname "LAYER"(getvar "CLAYER"))r(tblnext "LAYER" T))
+ (while r
+  (setq e(entget(tblobjname "LAYER"(cdr(assoc 2 r)))))
+  (setq rows(cons(list(cdr(assoc 5 e))(cdr(assoc 2 e))
+   (if(< (cdr(assoc 62 e))0)-1 1)(logand 5(cdr(assoc 70 e))))rows))
+  (setq r(tblnext "LAYER")))
+ (list(cdr(assoc 5(entget current)))(reverse rows)))
+(defun di:restore (snapshot / row e data flags color name current ok)
+ (setq ok T current(handent(car snapshot)))
+ (if current
+  (progn
+   (setq data(entget current)flags(cdr(assoc 70 data))color(cdr(assoc 62 data)))
+   (if(or(< color 0)(/= 0(logand flags 1)))
+    (if(not(entmod(subst(cons 70(logand flags -2))(assoc 70 data)
+       (subst(cons 62(abs color))(assoc 62 data)data))))(setq ok nil)))
+   (if ok(setvar "CLAYER"(cdr(assoc 2(entget current)))))))
+ (foreach row(cadr snapshot)
+  (if(setq e(handent(car row)))
+   (progn
+    (setq data(entget e))
+    (if(= (cdr(assoc 0 data))"LAYER")
+     (progn
+      (setq flags(logior(logand(cdr(assoc 70 data))-6)(nth 3 row))
+            color(* (nth 2 row)(abs(cdr(assoc 62 data)))))
+      (if(or(/= flags(cdr(assoc 70 data)))(/= color(cdr(assoc 62 data))))
+       (if(not(entmod(subst(cons 70 flags)(assoc 70 data)
+          (subst(cons 62 color)(assoc 62 data)data))))(setq ok nil))))))))
+ ok)
+(defun c:D (/ *error* ss fresh)
+ (defun *error*(msg)
+  (if(and msg(not(wcmatch(strcase msg)"*CANCEL*,*QUIT*,*EXIT*,*取消*,*中断*")))
+   (princ(strcat "\n" msg)))
+  (princ))
+ (setq ss(ssget "_I"))
+ (if(not ss)(setq ss(ssget)))
+ (if ss
+  (progn
+   (if(and(= 1(getvar "TILEMODE"))(not *di:baseline*))
+    (setq *di:baseline*(di:capture)fresh T))
+   (sssetfirst nil nil)
+   (command "_.LAYISO" ss "")
+   (setq fresh nil)
+   (sssetfirst nil nil)
+   (princ "\nD：图层已隔离；DD恢复到本轮第一次D之前。")))
+ (princ))
+(defun c:DD (/ *error* ok)
+ (defun *error*(msg)
+  (if(and msg(not(wcmatch(strcase msg)"*CANCEL*,*QUIT*,*EXIT*,*取消*,*中断*")))
+   (princ(strcat "\n" msg)))
+  (princ))
+ (command "_.LAYUNISO")
+ (if *di:baseline*
+  (progn
+   (setq ok(di:restore *di:baseline*))
+   (if ok
+    (progn(setq *di:baseline* nil)(princ "\nDD：已恢复到第一次D之前的图层显示。"))
+    (princ "\n部分图层未恢复，记录已保留，可再次DD。"))
+   (command "_.REGEN")))
+ (princ))
+(princ)
